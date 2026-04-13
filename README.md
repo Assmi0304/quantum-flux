@@ -6,7 +6,7 @@
 
 ---
 
-![Demo](./demo.gif)
+[![Watch Demo](https://img.youtube.com/vi/mOh_lLG2G3Y/maxresdefault.jpg)](https://www.youtube.com/watch?v=mOh_lLG2G3Y)
 
 ---
 
