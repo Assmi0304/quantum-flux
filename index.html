@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUANTUM // FLUX — Hand Tracking Experience</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cyan:   #00f5ff;
+    --purple: #bf00ff;
+    --pink:   #ff0080;
+    --dark:   #050505;
+    --glass:  rgba(5, 5, 20, 0.6);
+    --border: rgba(0, 245, 255, 0.2);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--dark);
+    overflow: hidden;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--cyan);
+  }
+
+  #canvas-container { position: fixed; inset: 0; z-index: 0; }
+  canvas { display: block; }
+
+  /* ── LOADING ── */
+  #loading {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--dark);
+    transition: opacity 0.8s ease;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+
+  #loading-canvas { display: block; max-width: 90vw; }
+
+  .load-sub {
+    margin-top: 1.2rem; font-size: 0.8rem;
+    letter-spacing: 0.3em; color: rgba(0,245,255,0.5);
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes blink { 50%{opacity:0} }
+
+  .load-bar-wrap {
+    margin-top: 1.4rem; width: min(320px,80vw);
+    height: 2px; background: rgba(0,245,255,0.1);
+    border-radius: 2px; overflow: hidden;
+  }
+  .load-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--cyan), var(--purple));
+    animation: loadprog 3s ease forwards;
+    box-shadow: 0 0 12px var(--cyan);
+  }
+  @keyframes loadprog { to { width: 100%; } }
+
+  /* ── WEBCAM ── */
+  #webcam-wrap {
+    position: fixed; top: 1.2rem; right: 1.2rem; z-index: 50;
+    width: clamp(120px,14vw,180px); border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--border); background: var(--glass);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(0,245,255,0.15), 0 0 40px rgba(191,0,255,0.08);
+  }
+  #webcam-label {
+    padding: 4px 8px; font-size: 0.55rem; letter-spacing: 0.18em;
+    color: rgba(0,245,255,0.6); border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.4);
+  }
+  #webcam { display: block; width: 100%; transform: scaleX(-1); opacity: 0.85; }
+  .webcam-dot {
+    position: absolute; top: 6px; right: 8px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--pink); box-shadow: 0 0 8px var(--pink);
+    animation: pulse 1s ease infinite;
+  }
+  @keyframes pulse { 50%{opacity:0.3} }
+
+  /* ── HUD ── */
+  #hud {
+    position: fixed; bottom: 1.5rem; left: 1.5rem; z-index: 50;
+    width: clamp(210px,22vw,290px);
+    background: var(--glass); backdrop-filter: blur(16px);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.2rem;
+    box-shadow: 0 0 30px rgba(0,245,255,0.08);
+  }
+  .hud-title {
+    font-family: 'Orbitron', sans-serif; font-size: 0.55rem;
+    letter-spacing: 0.25em; color: rgba(0,245,255,0.4); margin-bottom: 0.5rem;
+  }
+  #shape-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1rem,2.5vw,1.4rem); font-weight: 700;
+    color: var(--cyan); text-shadow: 0 0 20px var(--cyan);
+    letter-spacing: 0.15em; margin-bottom: 1rem;
+  }
+  .divider { height: 1px; background: linear-gradient(90deg,var(--border),transparent); margin-bottom: 0.8rem; }
+  .gesture-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-bottom: 0.55rem; }
+  .gesture-icon { font-size: 1rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 4px var(--purple)); }
+  .gesture-text { font-size: 0.65rem; line-height: 1.4; color: rgba(0,245,255,0.7); letter-spacing: 0.05em; }
+  .gesture-key  { color: var(--pink); font-weight: bold; }
+
+  /* ── TOP LIVE GESTURE PILL (CHANGE 3) ── */
+  #top-title {
+    position: fixed; top: 1.2rem; left: 50%; transform: translateX(-50%);
+    z-index: 50;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.55rem,1.2vw,0.8rem); font-weight: 700;
+    letter-spacing: 0.2em; white-space: nowrap; pointer-events: none;
+    padding: 0.4rem 1.2rem; border-radius: 999px;
+    background: rgba(0,245,255,0.04);
+    border: 1px solid rgba(0,245,255,0.12);
+    backdrop-filter: blur(8px);
+    color: rgba(0,245,255,0.3);
+    text-shadow: none; box-shadow: none;
+    transition: color 0.3s ease, border-color 0.3s ease,
+                text-shadow 0.3s ease, box-shadow 0.3s ease;
+  }
+  #top-title.gesture-active {
+    color: var(--cyan);
+    border-color: rgba(0,245,255,0.6);
+    text-shadow: 0 0 14px var(--cyan), 0 0 30px var(--cyan);
+    box-shadow: 0 0 18px rgba(0,245,255,0.25);
+  }
+
+  /* ── FPS ── */
+  #fps { position: fixed; top: 1.2rem; left: 1.2rem; z-index: 50; font-size: 0.6rem; color: rgba(0,245,255,0.3); letter-spacing: 0.1em; }
+
+  /* ── SHAPE FLASH ── */
+  #gesture-flash {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    z-index: 60; font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1rem,3vw,2rem); font-weight: 900; letter-spacing: 0.3em;
+    pointer-events: none; opacity: 0; transition: opacity 0.3s;
+    text-shadow: 0 0 40px currentColor;
+  }
+  #gesture-flash.show { opacity: 1; }
+
+  /* ── SCANLINES ── */
+  #scanlines {
+    position: fixed; inset: 0; z-index: 40; pointer-events: none;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+  }
+
+  /* ── CORNERS ── */
+  .corner { position: fixed; z-index: 50; pointer-events: none; width: 30px; height: 30px; border-color: rgba(0,245,255,0.3); border-style: solid; }
+  .corner.tl { top:10px; left:10px;    border-width:2px 0 0 2px; }
+  .corner.tr { top:10px; right:10px;   border-width:2px 2px 0 0; }
+  .corner.bl { bottom:10px; left:10px; border-width:0 0 2px 2px; }
+  .corner.br { bottom:10px; right:10px;border-width:0 2px 2px 0; }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <canvas id="loading-canvas"></canvas>
+  <div class="load-sub">▸ SYNCING HAND DATA ◂</div>
+  <div class="load-bar-wrap"><div class="load-bar"></div></div>
+</div>
+
+<div id="canvas-container"></div>
+<div id="scanlines"></div>
+<div class="corner tl"></div><div class="corner tr"></div>
+<div class="corner bl"></div><div class="corner br"></div>
+
+<!-- CHANGE 3: live gesture pill -->
+<div id="top-title">◈ QUANTUM // FLUX — READY</div>
+<div id="fps">FPS: --</div>
+
+<div id="webcam-wrap">
+  <div style="position:relative;">
+    <div id="webcam-label">◉ HAND INPUT</div>
+    <div class="webcam-dot"></div>
+    <video id="webcam" autoplay muted playsinline></video>
+  </div>
+</div>
+
+<!-- CHANGE 4: ASMI default, CHANGE 1: Korean heart gesture row -->
+<div id="hud">
+  <div class="hud-title">◈ ACTIVE FORMATION</div>
+  <div id="shape-name">ASMI</div>
+  <div class="divider"></div>
+  <div class="hud-title" style="margin-bottom:0.6rem;">◈ GESTURE CONTROLS</div>
+  <div class="gesture-row">
+    <div class="gesture-icon">🫰</div>
+    <div class="gesture-text"><span class="gesture-key">KOREAN HEART</span><br>Thumb + Index → Zoom in/out</div>
+  </div>
+  <div class="gesture-row">
+    <div class="gesture-icon">✋</div>
+    <div class="gesture-text"><span class="gesture-key">OPEN HAND</span><br>Move to repel particles</div>
+  </div>
+  <div class="gesture-row">
+    <div class="gesture-icon">✊</div>
+    <div class="gesture-text"><span class="gesture-key">FIST</span><br>Switch formation shape</div>
+  </div>
+</div>
+
+<div id="gesture-flash"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════════════
+   CHANGE 5 — LOADING CANVAS PARTICLE ASSEMBLY ANIMATION
+══════════════════════════════════════════════════════════ */
+(function initLoadingAnim() {
+  const TITLE = 'QUANTUM // FLUX';
+  const cvs   = document.getElementById('loading-canvas');
+  const W     = Math.min(window.innerWidth * 0.9, 700);
+  const H     = 160;
+  cvs.width   = W;
+  cvs.height  = H;
+  const ctx   = cvs.getContext('2d');
+
+  let rafId = null;
+  let frame = 0;
+
+  document.fonts.ready.then(() => {
+    setTimeout(() => {
+      /* ── Rasterise title on offscreen canvas ── */
+      const off  = document.createElement('canvas');
+      off.width  = W; off.height = H;
+      const octx = off.getContext('2d');
+      octx.fillStyle = '#000';
+      octx.fillRect(0, 0, W, H);
+      octx.textAlign    = 'center';
+      octx.textBaseline = 'middle';
+
+      let fs = 72;
+      octx.font = `900 ${fs}px Orbitron, monospace`;
+      while (octx.measureText(TITLE).width > W * 0.92 && fs > 20) {
+        fs -= 2;
+        octx.font = `900 ${fs}px Orbitron, monospace`;
+      }
+      octx.fillStyle = '#fff';
+      octx.fillText(TITLE, W / 2, H / 2);
+
+      /* ── Sample lit pixels (stride = 3) ── */
+      const pxData  = octx.getImageData(0, 0, W, H).data;
+      const samples = [];
+      for (let py = 0; py < H; py += 3) {
+        for (let px = 0; px < W; px += 3) {
+          const i = (py * W + px) * 4;
+          if (pxData[i] > 80 && pxData[i+3] > 80) samples.push({ x: px, y: py });
+        }
+      }
+
+      /* ── Build particle list (max 900) ── */
+      const MAX_P = 900;
+      const pList = [];
+      const count = Math.min(MAX_P, samples.length);
+      for (let k = 0; k < count; k++) {
+        const tgt = samples[Math.floor(Math.random() * samples.length)];
+        const hue = 180 + Math.random() * 120;
+        const lit = 60  + Math.random() * 30;
+        pList.push({
+          x: Math.random() * W, y: Math.random() * H,
+          vx: 0, vy: 0,
+          tx: tgt.x, ty: tgt.y,
+          delay: Math.floor(Math.random() * 60),
+          size:  0.8 + Math.random() * 1.8,
+          color: `hsl(${hue},100%,${lit}%)`,
+        });
+      }
+
+      /* ── Animation tick ── */
+      function tick() {
+        rafId = requestAnimationFrame(tick);
+        frame++;
+
+        ctx.fillStyle = 'rgba(5,5,5,0.25)';
+        ctx.fillRect(0, 0, W, H);
+
+        for (const p of pList) {
+          if (frame < p.delay) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * 0.4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,245,255,0.12)';
+            ctx.fill();
+            continue;
+          }
+          p.vx += (p.tx - p.x) * 0.07;
+          p.vy += (p.ty - p.y) * 0.07;
+          p.vx *= 0.78; p.vy *= 0.78;
+          p.x  += p.vx;  p.y  += p.vy;
+          const dist = Math.hypot(p.x - p.tx, p.y - p.ty);
+          ctx.shadowBlur  = 6;
+          ctx.shadowColor = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = dist < 5 ? '#00f5ff' : p.color;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        /* ── Shimmer sweep after frame 180 ── */
+        if (frame > 180) {
+          const shimmerAlpha = Math.min((frame - 180) / 60, 0.6);
+          const sweep = frame * 0.02;
+          const grad  = ctx.createLinearGradient(0, 0, W, 0);
+          const h1 = (sweep * 60) % 360;
+          const h2 = (h1 + 120) % 360;
+          grad.addColorStop(0,   `hsla(${h1},100%,70%,0)`);
+          grad.addColorStop(0.4, `hsla(${h1},100%,70%,${shimmerAlpha})`);
+          grad.addColorStop(0.6, `hsla(${h2},100%,75%,${shimmerAlpha})`);
+          grad.addColorStop(1,   `hsla(${h2},100%,70%,0)`);
+          ctx.font = `900 ${fs}px Orbitron, monospace`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = grad;
+          ctx.fillText(TITLE, W / 2, H / 2);
+        }
+      }
+
+      tick();
+    }, 100);
+  });
+
+  window._cancelLoadingAnim = () => { if (rafId) cancelAnimationFrame(rafId); };
+})();
+
+
+/* ══════════════════════════════════════════
+   CONFIGURATION
+══════════════════════════════════════════ */
+const CONFIG = {
+  PARTICLE_COUNT:        6000,
+  SHAPE_SWITCH_INTERVAL: 6000,
+  LERP_SPEED:            0.04,
+  FRICTION:              0.92,
+  REPULSION_RADIUS:      1.8,
+  REPULSION_FORCE:       0.18,
+  HEART_THRESHOLD:       0.07,  // CHANGE 1: Korean heart
+  FIST_THRESHOLD:        0.12,
+};
+
+/* CHANGE 2 & 4 */
+const SHAPES = ['TEXT', 'SPHERE', 'CONE', 'TORUS', 'HEART'];
+const SHAPE_COLORS = {
+  TEXT:   { r: 0.2,  g: 1.0,  b: 0.4 },
+  SPHERE: { r: 0.0,  g: 0.96, b: 1.0 },
+  CONE:   { r: 0.75, g: 0.0,  b: 1.0 },
+  TORUS:  { r: 1.0,  g: 0.0,  b: 0.5 },
+  HEART:  { r: 1.0,  g: 0.2,  b: 0.8 },
+};
+
+/* ══════════════════════════════════════════
+   THREE.JS SETUP
+══════════════════════════════════════════ */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x050505, 0.04);
+scene.background = new THREE.Color(0x050505);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+camera.position.z = 5;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+/* ══════════════════════════════════════════
+   PARTICLE SYSTEM
+══════════════════════════════════════════ */
+const N          = CONFIG.PARTICLE_COUNT;
+const geometry   = new THREE.BufferGeometry();
+const positions  = new Float32Array(N * 3);
+const colors     = new Float32Array(N * 3);
+const sizes      = new Float32Array(N);
+const velocities = new Float32Array(N * 3);
+const targets    = new Float32Array(N * 3);
+
+function makeSprite() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,   'rgba(255,255,255,1)');
+  g.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+  g.addColorStop(1,   'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+}
+
+const material = new THREE.PointsMaterial({
+  size: 0.03, map: makeSprite(),
+  blending: THREE.AdditiveBlending,
+  depthWrite: false, transparent: true,
+  vertexColors: true, sizeAttenuation: true,
+});
+
+for (let i = 0; i < N; i++) {
+  const i3 = i * 3;
+  positions[i3]   = (Math.random()-0.5)*8;
+  positions[i3+1] = (Math.random()-0.5)*8;
+  positions[i3+2] = (Math.random()-0.5)*8;
+  colors[i3] = 0.2; colors[i3+1] = 1.0; colors[i3+2] = 0.4;
+  sizes[i] = Math.random()*0.02+0.01;
+}
+
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+const points = new THREE.Points(geometry, material);
+scene.add(points);
+
+/* ══════════════════════════════════════════
+   SHAPE GENERATORS
+══════════════════════════════════════════ */
+function genSphere(out, n) {
+  for (let i = 0; i < n; i++) {
+    const i3 = i * 3;
+    const u = Math.random(), v = Math.random();
+    const θ = 2*Math.PI*u, φ = Math.acos(2*v-1);
+    const r = 2.0 + (Math.random()-0.5)*0.3;
+    out[i3]   = r*Math.sin(φ)*Math.cos(θ);
+    out[i3+1] = r*Math.sin(φ)*Math.sin(θ);
+    out[i3+2] = r*Math.cos(φ);
+  }
+}
+
+/* CHANGE 2 — genCone */
+function genCone(out, n) {
+  for (let i = 0; i < n; i++) {
+    const i3  = i * 3;
+    const t   = Math.random();
+    const y   = t * 3.5 - 1.75;
+    const rad = (1 - t) * 1.8;
+    const r   = Math.sqrt(Math.random()) * rad;
+    const ang = Math.random() * Math.PI * 2;
+    const jit = 0.06;
+    out[i3]   = Math.cos(ang)*r + (Math.random()-0.5)*jit;
+    out[i3+1] = y               + (Math.random()-0.5)*jit;
+    out[i3+2] = Math.sin(ang)*r + (Math.random()-0.5)*jit;
+  }
+}
+
+function genTorus(out, n) {
+  const R = 2.0, r = 0.7;
+  for (let i = 0; i < n; i++) {
+    const i3 = i*3;
+    const u = Math.random()*2*Math.PI, v = Math.random()*2*Math.PI;
+    out[i3]   = (R+r*Math.cos(v))*Math.cos(u);
+    out[i3+1] = r*Math.sin(v) + (Math.random()-0.5)*0.1;
+    out[i3+2] = (R+r*Math.cos(v))*Math.sin(u);
+  }
+}
+
+function genHeart(out, n) {
+  for (let i = 0; i < n; i++) {
+    const i3 = i*3;
+    const t  = (i/n)*Math.PI*2;
+    const x  = 16*Math.pow(Math.sin(t),3);
+    const y  = 13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
+    out[i3]   = x*0.13 + (Math.random()-0.5)*0.2;
+    out[i3+1] = y*0.13 + (Math.random()-0.5)*0.2;
+    out[i3+2] = (Math.random()-0.5)*0.5;
+  }
+}
+
+/* ── TEXT shape: rasterise ASMI after fonts ready ── */
+let _textPoints = null, _textReady = false;
+
+function rasteriseText() {
+  const WORD = 'ASMI';
+  const W = 800, H = 220;
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,W,H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let fs = 160;
+  ctx.font = `900 ${fs}px Orbitron, monospace`;
+  while (ctx.measureText(WORD).width > W*0.92 && fs > 40) { fs -= 4; ctx.font = `900 ${fs}px Orbitron, monospace`; }
+  ctx.fillStyle = '#fff';
+  ctx.fillText(WORD, W/2, H/2);
+  const data = ctx.getImageData(0,0,W,H).data;
+  const pts  = [];
+  for (let py = 0; py < H; py += 2) {
+    for (let px = 0; px < W; px += 2) {
+      const idx = (py*W+px)*4;
+      if (data[idx] > 60 && data[idx+3] > 60)
+        pts.push((px/W-0.5)*7.0, -(py/H-0.5)*1.8);
+    }
+  }
+  _textPoints = pts; _textReady = true;
+}
+
+document.fonts.ready.then(() => {
+  setTimeout(() => {
+    rasteriseText();
+    if (SHAPES[currentShapeIdx] === 'TEXT') genText(targets, N);
+  }, 200);
+});
+
+function genText(out, n) {
+  if (!_textReady || _textPoints.length < 10) { genSphere(out, n); return; }
+  const pts = _textPoints, ptCount = pts.length/2, jitter = 0.05;
+  for (let i = 0; i < n; i++) {
+    const i3 = i*3, pick = Math.floor(Math.random()*ptCount)*2;
+    out[i3]   = pts[pick]   + (Math.random()-0.5)*jitter;
+    out[i3+1] = pts[pick+1] + (Math.random()-0.5)*jitter;
+    out[i3+2] = (Math.random()-0.5)*0.4;
+  }
+}
+
+const GENERATORS = { TEXT: genText, SPHERE: genSphere, CONE: genCone, TORUS: genTorus, HEART: genHeart };
+
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+let currentShapeIdx = 0;
+let lastShapeSwitch = performance.now();
+let targetZoom      = 5;
+let currentZoom     = 5;
+let autoRotAngle    = 0;
+
+let handPos3D       = new THREE.Vector3(0,0,0);
+let handActive      = false;
+let isKoreanHeart   = false;   // CHANGE 1
+let isFist          = false;
+let prevHeartDist   = null;    // CHANGE 1
+let heartZoomBase   = 5;       // CHANGE 1
+let fistCooldown    = 0;
+let prevFingerState = false;
+
+/* CHANGE 3 — live gesture pill helpers */
+let _headerResetTimer = null;
+const HEADER_DEFAULT  = '◈ QUANTUM // FLUX — READY';
+
+function showGestureHeader(text) {
+  const el = document.getElementById('top-title');
+  el.textContent = text;
+  el.classList.add('gesture-active');
+  if (_headerResetTimer) clearTimeout(_headerResetTimer);
+  _headerResetTimer = setTimeout(() => {
+    el.textContent = HEADER_DEFAULT;
+    el.classList.remove('gesture-active');
+    _headerResetTimer = null;
+  }, 1800);
+}
+
+/* CHANGE 4 — ASMI label */
+function setShape(name) {
+  GENERATORS[name](targets, N);
+  const label = name === 'TEXT' ? 'ASMI' : name;
+  document.getElementById('shape-name').textContent = label;
+  const col = SHAPE_COLORS[name];
+  for (let i = 0; i < N; i++) {
+    const i3 = i*3;
+    colors[i3] = col.r; colors[i3+1] = col.g; colors[i3+2] = col.b;
+  }
+  geometry.attributes.color.needsUpdate = true;
+  flashGesture(label, col);
+}
+
+function flashGesture(text, col) {
+  const el = document.getElementById('gesture-flash');
+  el.textContent = text;
+  el.style.color = `rgb(${(col.r*255)|0},${(col.g*255)|0},${(col.b*255)|0})`;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1200);
+}
+
+setShape(SHAPES[0]); // TEXT / ASMI first
+
+/* ══════════════════════════════════════════
+   ANIMATION LOOP
+══════════════════════════════════════════ */
+let lastTime = performance.now(), fpsTime = 0, fpsFrames = 0;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - lastTime) / 16.67, 3);
+  lastTime = now;
+
+  fpsFrames++;
+  if (fpsFrames % 30 === 0) {
+    const elapsed = now - fpsTime;
+    document.getElementById('fps').textContent = `FPS: ${Math.round(30000 / (elapsed || 1))}`;
+    fpsTime = now; fpsFrames = 0;
+  }
+
+  // Auto shape cycle
+  if (now - lastShapeSwitch > CONFIG.SHAPE_SWITCH_INTERVAL) {
+    lastShapeSwitch = now;
+    currentShapeIdx = (currentShapeIdx + 1) % SHAPES.length;
+    setShape(SHAPES[currentShapeIdx]);
+  }
+
+  if (fistCooldown > 0) fistCooldown -= dt;
+
+  // Zoom lerp
+  currentZoom += (targetZoom - currentZoom) * 0.05 * dt;
+  camera.position.z = currentZoom;
+
+  // Cinematic drift
+  autoRotAngle += 0.001 * dt;
+  camera.position.x = Math.sin(autoRotAngle) * 0.5;
+  camera.position.y = Math.sin(autoRotAngle * 0.7) * 0.2;
+  camera.lookAt(0, 0, 0);
+
+  // Particle physics
+  const pos = geometry.attributes.position.array;
+  const ft  = now * 0.0003;
+  for (let i = 0; i < N; i++) {
+    const i3 = i * 3;
+    const tx = targets[i3]   + Math.sin(ft + i*0.37)*0.04;
+    const ty = targets[i3+1] + Math.cos(ft + i*0.29)*0.04;
+    const tz = targets[i3+2] + Math.sin(ft + i*0.53)*0.04;
+
+    velocities[i3]   += (tx - pos[i3])   * CONFIG.LERP_SPEED * dt;
+    velocities[i3+1] += (ty - pos[i3+1]) * CONFIG.LERP_SPEED * dt;
+    velocities[i3+2] += (tz - pos[i3+2]) * CONFIG.LERP_SPEED * dt;
+
+    if (handActive && !isKoreanHeart && !isFist) {
+      const dx = pos[i3]-handPos3D.x, dy = pos[i3+1]-handPos3D.y, dz = pos[i3+2]-handPos3D.z;
+      const d2 = dx*dx+dy*dy+dz*dz;
+      const r2 = CONFIG.REPULSION_RADIUS * CONFIG.REPULSION_RADIUS;
+      if (d2 < r2 && d2 > 0.001) {
+        const d = Math.sqrt(d2);
+        const f = CONFIG.REPULSION_FORCE * (1 - d/CONFIG.REPULSION_RADIUS) * dt;
+        velocities[i3]   += (dx/d)*f;
+        velocities[i3+1] += (dy/d)*f;
+        velocities[i3+2] += (dz/d)*f;
+      }
+    }
+
+    const fr = Math.pow(CONFIG.FRICTION, dt);
+    velocities[i3]   *= fr; velocities[i3+1] *= fr; velocities[i3+2] *= fr;
+    pos[i3]   += velocities[i3];
+    pos[i3+1] += velocities[i3+1];
+    pos[i3+2] += velocities[i3+2];
+  }
+
+  geometry.attributes.position.needsUpdate = true;
+  points.rotation.y += 0.0008 * dt;
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+
+/* ══════════════════════════════════════════
+   MEDIAPIPE HANDS
+══════════════════════════════════════════ */
+const videoEl = document.getElementById('webcam');
+
+function initHands() {
+  const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+  hands.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.6 });
+  hands.onResults(onHandResults);
+  const cam = new Camera(videoEl, {
+    onFrame: async () => { await hands.send({ image: videoEl }); },
+    width: 320, height: 240
+  });
+  cam.start().catch(() => { document.getElementById('webcam-label').textContent = '◉ NO CAM'; });
+}
+
+function onHandResults(results) {
+  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+    handActive = false; isKoreanHeart = false; isFist = false;
+    prevHeartDist = null; prevFingerState = false;
+    return;
+  }
+
+  handActive = true;
+  const lm = results.multiHandLandmarks[0];
+
+  // Wrist → 3D (mirror X)
+  const w = lm[0];
+  handPos3D.x = (0.5 - w.x) * 8;
+  handPos3D.y = (0.5 - w.y) * 6;
+  handPos3D.z = w.z * 4;
+
+  const thumbTip  = lm[4],  indexTip  = lm[8];
+  const middleTip = lm[12], ringTip   = lm[16], pinkyTip = lm[20];
+  const indexMCP  = lm[5];
+  const middlePIP = lm[10], ringPIP   = lm[14], pinkyPIP = lm[18];
+
+  const thumbIndexDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+
+  /* ── CHANGE 1: Korean Heart ──
+     Thumb+index close AND middle/ring/pinky tips above PIP joints */
+  const close      = thumbIndexDist < CONFIG.HEART_THRESHOLD;
+  const midExt     = middleTip.y < middlePIP.y - 0.02;
+  const ringExt    = ringTip.y   < ringPIP.y   - 0.02;
+  const pinkyExt   = pinkyTip.y  < pinkyPIP.y  - 0.02;
+  isKoreanHeart    = close && midExt && ringExt && pinkyExt;
+
+  if (isKoreanHeart) {
+    showGestureHeader('🫰 GESTURE: KOREAN HEART — ZOOM');
+    if (prevHeartDist === null) {
+      prevHeartDist = thumbIndexDist;
+      heartZoomBase = targetZoom;
+    } else {
+      const delta = (prevHeartDist - thumbIndexDist) * 30;
+      targetZoom = Math.max(2, Math.min(10, heartZoomBase + delta));
+    }
+  } else {
+    prevHeartDist = null;
+  }
+
+  /* ── Fist: all fingertips below MCP, not heart ── */
+  const curled = [indexTip, middleTip, ringTip, pinkyTip].every(t => t.y > indexMCP.y + 0.02);
+  const curledNow = curled && !isKoreanHeart;
+
+  if (curledNow && !prevFingerState && fistCooldown <= 0) {
+    isFist = true; fistCooldown = 30;
+    currentShapeIdx = (currentShapeIdx + 1) % SHAPES.length;
+    setShape(SHAPES[currentShapeIdx]);
+    lastShapeSwitch = performance.now();
+    showGestureHeader('✊ GESTURE: FIST — SWITCHING SHAPE');
+  } else if (!curledNow) {
+    isFist = false;
+  }
+  prevFingerState = curledNow;
+}
+
+/* ══════════════════════════════════════════
+   RESIZE  /  KEYBOARD  /  INIT
+══════════════════════════════════════════ */
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    currentShapeIdx = (currentShapeIdx + 1) % SHAPES.length;
+    setShape(SHAPES[currentShapeIdx]);
+    lastShapeSwitch = performance.now();
+  }
+});
+
+// 3.2 s gives the particle assembly animation time to finish
+setTimeout(() => {
+  if (window._cancelLoadingAnim) window._cancelLoadingAnim();
+  document.getElementById('loading').classList.add('hidden');
+  initHands();
+}, 3200);
+</script>
+</body>
+</html>
