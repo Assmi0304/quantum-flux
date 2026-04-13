@@ -2,7 +2,7 @@
 
 > Real-time 3D particle system controlled by hand gestures via webcam.
 
-🔗 **[Live Demo](https://quantum-flux.vercel.app)**
+🔗 **[Live Demo](https://quantum-flux-rspu.vercel.app)**
 
 ---
 
