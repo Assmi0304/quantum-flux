@@ -2,18 +2,15 @@
 
 > Real-time 3D particle system controlled by hand gestures via webcam.
 
-🔗 **[Live Demo](https://YOUR-USERNAME.github.io/quantum-flux)**
+🔗 **[Live Demo](https://quantum-flux.vercel.app)**
 
 ---
 
-<!-- Replace ./demo.gif with your actual screen recording -->
 ![Demo](./demo.gif)
 
 ---
 
-<details>
-<summary>🟦 Gesture Controls</summary>
-<br/>
+## 🟦 Gesture Controls
 
 | Gesture | Action |
 |--------|--------|
@@ -21,11 +18,9 @@
 | ✋ Open Hand | Repel particles |
 | 🤏 Pinch | Zoom in / out |
 
-</details>
+---
 
-<details>
-<summary>🟣 Particle Formations</summary>
-<br/>
+## 🟣 Particle Formations
 
 | Shape | Color |
 |-------|-------|
@@ -35,14 +30,12 @@
 | Torus | 🩷 Pink |
 | Heart | 💗 Magenta |
 
-</details>
+---
 
-<details>
-<summary>🟩 Run Locally</summary>
-<br/>
+## 🟩 Run Locally
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/quantum-flux.git
+git clone https://github.com/Asmi0304/quantum-flux.git
 cd quantum-flux
 ```
 
@@ -54,21 +47,17 @@ npx serve .
 
 > ⚠️ Allow webcam access when browser asks. Works best in Chrome or Edge.
 
-</details>
+---
 
-<details>
-<summary>🟧 Built With</summary>
-<br/>
+## 🟧 Built With
 
 - [Three.js r128](https://threejs.org) — 3D WebGL particle rendering
 - [MediaPipe Hands](https://mediapipe.dev) — real-time hand tracking
 - Vanilla JS + HTML5 Canvas — zero frameworks
 
-</details>
+---
 
-<details>
-<summary>🟥 Credits & Attribution</summary>
-<br/>
+## 🟥 Credits & Attribution
 
 > ⚠️ **This is not my original idea.**
 > The concept and visual direction were created by someone else.
@@ -77,5 +66,3 @@ npx serve .
 - 💡 Original concept — credit to the original creator
 - 🤖 Code built with AI assistance via Claude (Anthropic)
 - ✏️ Customised and modified by me
-
-</details>
